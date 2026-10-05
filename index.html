@@ -19,6 +19,7 @@ nav button span{font-size:20px}
 nav button.on{color:var(--ac)}
 .card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px}
 .row{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:10px;padding:11px 12px;margin-bottom:6px}
+.row.g0{background:#2e365c}
 .row .no{width:30px;text-align:center;font-weight:700;color:var(--ac);flex:none}
 .row .nm{flex:1;min-width:0}
 .row .nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -108,21 +109,27 @@ function render(){
 function vRank(){
   const l=pool(S.filters.rank);
   $('main').innerHTML=toggle('rank')+`<div class="bar"><button class="btn sec" data-act="add">＋ 대기자/멤버 추가</button><button class="btn sec" data-act="roles">👑 직책 설정</button>${IMGBTN('rank')}</div>`+
-  (l.length?l.map((m,i)=>`<div class="row" data-edit="${esc(m.name)}"><div class="no">${i+1}</div><div class="nm"><b>${esc(m.name)}${badges(m)}</b><span class="sub">${latestDate(m)} · ✏️ 눌러서 수정</span></div><div class="val"><b>${fmt(latest(m))}</b></div></div>`).join(''):'<div class="empty">데이터가 없습니다.<br>[입력] 탭에서 캡처를 올려주세요.</div>');
+  (l.length?l.map((m,i)=>`<div class="row g${Math.floor(i/5)%2}" data-edit="${esc(m.name)}"><div class="no">${i+1}</div><div class="nm"><b>${esc(m.name)}${badges(m)}</b><span class="sub">${latestDate(m)} · ✏️ 눌러서 수정</span></div><div class="val"><b>${fmt(latest(m))}</b></div></div>`).join(''):'<div class="empty">데이터가 없습니다.<br>[입력] 탭에서 캡처를 올려주세요.</div>');
 }
 
 const CMODES=[['prev','직전',0],['week','주간',7],['month','월간',30]];
 const dayDiff=(a,b)=>Math.round((new Date(a)-new Date(b))/864e5);
+/* 모두 같은 두 날짜로 비교: 기준일에 기록이 없는 멤버(그 뒤에 충원된 멤버)는 비교에서 제외 */
+function changeRef(){
+  const mode=S.cmode||'prev',cm=CMODES.find(x=>x[0]===mode),need=mode==='week'?4:mode==='month'?15:1;
+  const all=[...new Set(S.members.flatMap(dates))].sort(),d1=all[all.length-1];
+  if(all.length<2)return{d0:null,d1};
+  const prior=all.slice(0,-1);
+  if(mode==='prev')return{d0:prior[prior.length-1],d1};
+  let d0=null,bd=1e9;
+  for(const x of prior){const gap=dayDiff(d1,x);if(gap<need)continue;const diff=Math.abs(gap-cm[2]);if(diff<bd){bd=diff;d0=x}}
+  return{d0,d1};
+}
 function changes(include){
-  const mode=S.cmode||'prev',sortBy=S.csort||'power',cm=CMODES.find(x=>x[0]===mode),need=mode==='week'?4:mode==='month'?15:1;
+  const sortBy=S.csort||'power',{d0,d1}=changeRef();
   const rows=pool(include).map(m=>{
-    const d=dates(m),d1=d[d.length-1],b=m.history[d1];let d0=null;
-    if(d.length>1){
-      if(mode==='prev')d0=d[d.length-2];
-      else{let bd=1e9;for(const x of d.slice(0,-1)){const gap=dayDiff(d1,x);if(gap<need)continue;const diff=Math.abs(gap-cm[2]);if(diff<bd){bd=diff;d0=x}}}
-    }
-    const a=d0?m.history[d0]:null;
-    return{m,b,a,d0,d1,diff:a?b-a:null,pct:a?(b-a)/a*100:null}});
+    const dl=latestDate(m),b=m.history[dl],a=(d0&&dl===d1&&d0 in m.history)?m.history[d0]:null;
+    return{m,b,a,d0:a?d0:null,d1:dl,diff:a?b-a:null,pct:a?(b-a)/a*100:null,fresh:!a&&!!d0&&dates(m)[0]>d0}});
   rows.forEach((r,i)=>r.pr=i+1);
   const key=(S.cmetric||'pct')==='abs'?'diff':'pct';
   const w=rows.filter(r=>r.pct!==null).sort((x,y)=>y[key]-x[key]);w.forEach((r,i)=>r.rr=i+1);
@@ -138,9 +145,10 @@ function vChange(){
   const ctl=`<div class="bar">${CMODES.map(c=>`<button class="btn ${c[0]===mode?'':'sec'}" data-cmode="${c[0]}">${c[1]}</button>`).join('')}</div>
   <div class="bar">${[['pct','변화율(%)'],['abs','변화량']].map(c=>`<button class="btn ${c[0]===cMetric()?'':'sec'}" data-cmetric="${c[0]}">${c[1]}</button>`).join('')}</div>
   <div class="bar"><button class="btn ${rate?'':'sec'}" data-act="csort">${rate?`✓ ${mLabel()} 순위순 (눌러서 해제)`:`📈 ${mLabel()} 순위로 보기`}</button></div>`;
-  const row=c=>{const up=c.pct!==null&&c.pct>=0;
-    return `<div class="row" data-edit="${esc(c.m.name)}"><div class="no">${rate?c.rr||'-':c.pr}</div><div class="nm"><b>${esc(c.m.name)}${badges(c.m)}</b><span class="sub">${c.pct===null?'비교할 기록 없음 · 현재 '+fmt(c.b):`${fmt(c.a)} → ${fmt(c.b)}<br>${c.d0} → ${c.d1}`}<br>${rate?'전투력 '+c.pr+'위':(c.rr?mLabel()+' '+c.rr+'위':'')}</span></div><div class="val ${c.pct===null?'':up?'up':'down'}"><b>${cMain(c)}</b>${c.pct===null?'':`<br><span class="sub">${cSecond(c)}</span>`}</div></div>`};
-  $('main').innerHTML=toggle('change')+ctl+(l.length?`<div class="bar">${IMGBTN('change')}</div>`+l.map(row).join(''):'<div class="empty">데이터가 없습니다.</div>')+
+  const row=(c,i)=>{const up=c.pct!==null&&c.pct>=0;
+    return `<div class="row g${Math.floor(i/5)%2}" data-edit="${esc(c.m.name)}"><div class="no">${rate?c.rr||'-':c.pr}</div><div class="nm"><b>${esc(c.m.name)}${badges(c.m)}</b><span class="sub">${c.pct===null?(c.fresh?'신규 멤버(비교 제외)':'비교할 기록 없음')+' · 현재 '+fmt(c.b):`${fmt(c.a)} → ${fmt(c.b)}<br>${c.d0} → ${c.d1}`}<br>${rate?'전투력 '+c.pr+'위':(c.rr?mLabel()+' '+c.rr+'위':'')}</span></div><div class="val ${c.pct===null?'':up?'up':'down'}"><b>${cMain(c)}</b>${c.pct===null?'':`<br><span class="sub">${cSecond(c)}</span>`}</div></div>`};
+  const rf=changeRef();
+  $('main').innerHTML=toggle('change')+ctl+(rf.d0?`<div class="sub" style="margin:-2px 0 8px">비교 기간: ${rf.d0} → ${rf.d1}</div>`:'')+(l.length?`<div class="bar">${IMGBTN('change')}</div>`+l.map((c,i)=>row(c,i)).join(''):'<div class="empty">데이터가 없습니다.</div>')+
   (l.length&&!l.some(c=>c.pct!==null)?'<div class="empty">'+cLabel()+' 기준으로 비교할 기록이 없습니다.<br>날짜를 달리해서 입력하면 표시됩니다.</div>':'');
 }
 
@@ -355,11 +363,11 @@ const IMGBTN=k=>`<button class="btn sec" data-act="img" data-k="${k}">🖼 이�
 function pageItems(k){
   if(k==='rank'){const l=pool(S.filters.rank);
     return{name:'순위',sub:`전투력 순위 · ${l.length}명`+(S.filters.rank?' (길드 외 포함)':''),
-      items:l.map((m,i)=>({no:i+1,t:m.name,tag:[m.role&&m.role!=='멤버'?m.role:'',m.guild?'':'대기'].filter(Boolean).join(' '),r:fmt(latest(m))}))}}
+      items:l.map((m,i)=>({g:Math.floor(i/5)%2,no:i+1,t:m.name,tag:[m.role&&m.role!=='멤버'?m.role:'',m.guild?'':'대기'].filter(Boolean).join(' '),r:fmt(latest(m))}))}}
   if(k==='change'){const l=changes(S.filters.change),rate=(S.csort||'power')==='rate';
-    const ref=l.find(c=>c.pct!==null);
-    return{name:'변화',sub:`전투력 ${mLabel()}(${cLabel()}) · ${rate?mLabel()+' 순':'전투력 순'} · ${l.length}명`+(S.filters.change?' (길드 외 포함)':'')+(ref?`\n${ref.d0} → ${ref.d1}`:''),
-      items:l.map(c=>({no:rate?(c.rr||'-'):c.pr,t:c.m.name,tag:c.pct===null?'기록없음':cSecond(c),s:c.pct===null?'':`${fmt(c.a)} → ${fmt(c.b)}  ·  ${rate?'전투력 '+c.pr+'위':mLabel()+' '+c.rr+'위'}`,r:cMain(c),c:c.pct===null?'#9aa0b8':c.pct>=0?'#4ade80':'#f87171'}))}}
+    const ref=changeRef();
+    return{name:'변화',sub:`전투력 ${mLabel()}(${cLabel()}) · ${rate?mLabel()+' 순':'전투력 순'} · ${l.length}명`+(S.filters.change?' (길드 외 포함)':'')+(ref.d0?`\n${ref.d0} → ${ref.d1}`:''),
+      items:l.map((c,i)=>({g:Math.floor(i/5)%2,no:rate?(c.rr||'-'):c.pr,t:c.m.name,tag:c.pct===null?(c.fresh?'신규':'기록없음'):cSecond(c),s:c.pct===null?'':`${fmt(c.a)} → ${fmt(c.b)}  ·  ${rate?'전투력 '+c.pr+'위':mLabel()+' '+c.rr+'위'}`,r:cMain(c),c:c.pct===null?'#9aa0b8':c.pct>=0?'#4ade80':'#f87171'}))}}
   if(k==='party'){const p=parties(),items=[];
     p.forEach((g,i)=>{items.push({head:`${i+1}파티`});g.forEach(m=>items.push({t:m.name,tag:m.guild?'':'대기',r:fmt(latest(m))}))});
     return{name:'파티',sub:`파티던전 · ${p.length}개 파티`+(S.filters.party?' (길드 외 포함)':''),items}}
@@ -375,7 +383,7 @@ function saveImage(k){
   const subLines=pg.sub.split('\n');
   const hOf=it=>it.head?44:it.text?(it.bold?34:28):(it.s?60:46);
   const top=64+subLines.length*24+10;
-  const H=top+pg.items.reduce((a,it)=>a+hOf(it),0)+PAD;
+  const H=Math.max(top+pg.items.reduce((a,it)=>a+hOf(it),0)+PAD,W*2.8);
   const c=document.createElement('canvas');c.width=W*SC;c.height=Math.ceil(H*SC);const x=c.getContext('2d');x.scale(SC,SC);
   x.fillStyle='#14161f';x.fillRect(0,0,W,H);x.textBaseline='middle';x.textAlign='left';
   x.fillStyle='#eceef6';x.font=`bold 26px ${F}`;x.fillText(`천국 길드 · ${pg.name}`,PAD+4,28);
@@ -386,7 +394,7 @@ function saveImage(k){
   for(const it of pg.items){const h=hOf(it);
     if(it.head){x.fillStyle='#7c9cff';x.font=`bold 22px ${F}`;x.textAlign='left';x.fillText(it.head,PAD+4,y+h/2+6)}
     else if(it.text){x.textAlign='left';x.fillStyle=it.bold?'#eceef6':'#9aa0b8';const f=`${it.bold?'bold ':''}17px ${F}`;fit(it.text,f,W-PAD*2-8);x.fillText(it.text,PAD+4,y+h/2)}
-    else{x.fillStyle='#1e2130';x.beginPath();x.roundRect(PAD/2,y+2,W-PAD,h-4,8);x.fill();
+    else{x.fillStyle=it.g===0?'#2e365c':'#1e2130';x.beginPath();x.roundRect(PAD/2,y+2,W-PAD,h-4,8);x.fill();
       const my=it.s?y+h/2-11:y+h/2;
       if(it.no!==undefined){x.textAlign='center';x.fillStyle='#7c9cff';x.font=`bold 21px ${F}`;x.fillText(it.no,PAD+16,my)}
       x.textAlign='right';x.fillStyle=it.c||'#eceef6';x.font=`bold 25px ${F}`;const rw=x.measureText(it.r).width;x.fillText(it.r,W-PAD-6,my);
@@ -401,10 +409,45 @@ function saveImage(k){
 
 /* ---------- 공용 데이터 (data.json) ---------- */
 function toast(msg){const t=document.createElement('div');t.textContent=msg;t.style.cssText='position:fixed;left:14px;right:14px;bottom:90px;background:#2d3350;color:#eceef6;padding:12px;border-radius:10px;z-index:30;text-align:center';document.body.appendChild(t);setTimeout(()=>t.remove(),3500)}
+async function loadXlsxLib(){
+  if(window.XLSX)return;
+  await new Promise((ok,no)=>{const e=document.createElement('script');e.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';e.onload=ok;e.onerror=()=>no(new Error('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)'));document.head.appendChild(e)});
+}
+const serialToDate=n=>new Date(Math.round((n-25569)*864e5)).toISOString().slice(0,10);
+function normDate(h){
+  if(typeof h==='number'&&h>20000&&h<80000)return serialToDate(h);
+  const m=String(h).trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m?`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`:null;
+}
+function parsePowerCell(v){
+  if(v===''||v==null)return null;
+  if(typeof v==='number')return v>0?Math.round(v*1e6):null;
+  const m=String(v).replace(/[, ]/g,'').match(/^(\d+(?:\.\d+)?)([BbMm])$/);
+  return m?raw(m[1],m[2].toUpperCase()):null;
+}
+/* 엑셀 형식: 1행 = 이름 | 직책 | 구분 | 날짜1 | 날짜2 ... , 2행부터 멤버 한 명씩 (전투력은 5.08B / 445.53M 처럼 입력) */
+function xlsxToData(buf){
+  const wb=XLSX.read(buf,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''}),head=rows[0]||[];
+  const ci=n=>head.findIndex(h=>String(h).trim()===n),iN=ci('이름'),iR=ci('직책'),iG=ci('구분');
+  if(iN<0)throw new Error("엑셀 첫 줄에 '이름' 열이 필요합니다");
+  const dcols=head.map((h,i)=>({i,d:normDate(h)})).filter(x=>x.d),members=[];
+  for(const r of rows.slice(1)){
+    const name=String(r[iN]||'').trim();if(!name)continue;
+    const history={};dcols.forEach(c=>{const v=parsePowerCell(r[c.i]);if(v)history[c.d]=v});
+    members.push({name,role:(iR>=0&&String(r[iR]).trim())||'멤버',guild:!(iG>=0&&String(r[iG]).includes('대기')),history,alt:[]});
+  }
+  return{members};
+}
 async function fetchShared(){
-  const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'});
-  if(!r.ok)throw new Error('공용 데이터(data.json)를 찾을 수 없습니다');
-  const d=await r.json();if(!d||!Array.isArray(d.members))throw new Error('올바른 공용 데이터 파일이 아닙니다');return d;
+  const t='?t='+Date.now();
+  let r=await fetch('data/data.xlsx'+t,{cache:'no-store'}).catch(()=>null);
+  if(r&&r.ok){await loadXlsxLib();return xlsxToData(await r.arrayBuffer())}
+  for(const p of ['data/data.json','data.json']){
+    r=await fetch(p+t,{cache:'no-store'}).catch(()=>null);
+    if(r&&r.ok){const d=await r.json();if(!d||!Array.isArray(d.members))throw new Error('올바른 공용 데이터 파일이 아닙니다');return d}
+  }
+  throw new Error('공용 데이터(data/data.xlsx)를 찾을 수 없습니다');
 }
 function planMerge(d){
   const conf=[];let newM=0,newRec=0;
