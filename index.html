@@ -46,6 +46,22 @@ input[type=checkbox]{width:auto}
 .chips span{display:block;min-width:38px;text-align:center;padding:7px 0;border-radius:8px;background:var(--card2);color:var(--sub);font-weight:700;border:1px solid var(--bd)}
 .chips input:checked+span{background:var(--ac);color:#0b0e1a;border-color:var(--ac)}
 .legend div{font-size:13px;padding:2px 0}
+.altgrid{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;align-items:start}
+.altR{position:sticky;top:62px;max-height:calc(100vh - 150px);overflow-y:auto}
+.acard{background:var(--card);border-radius:10px;padding:7px 8px;margin-bottom:6px}
+.ah{display:flex;align-items:center;gap:6px}
+.ah .no{width:20px;text-align:center;font-weight:700;color:var(--ac);font-size:13px;flex:none}
+.ah .an{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.ah .ap{font-size:12px;color:var(--sub);flex:none}
+.acard .chips{gap:4px;margin-top:5px}
+.acard .chips span{min-width:0;padding:5px 7px;font-size:12px;border-radius:7px}
+.acard .chips.sub span{padding:4px 8px;background:#262a3f}
+.acard .chips.sub input:checked+span{background:var(--ac);color:#0b0e1a;border-color:var(--ac)}
+.altR .bar button{flex:1 1 100%;white-space:nowrap;padding:7px 4px;font-size:13px}
+.erow{display:flex;align-items:center;gap:6px;background:var(--card);border-radius:8px;padding:9px 8px;margin-bottom:5px;font-size:14px}
+.erow b{width:62px;flex:none;color:var(--ac);font-size:13px}
+.erow .en{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sub);font-size:12px}
+.erow .ep{font-weight:700;flex:none}
 .legend b{color:var(--ac);display:inline-block;width:18px}
 .drow{display:grid;grid-template-columns:1.4fr 1fr .7fr 1fr 34px;gap:5px;margin-bottom:6px}
 .drow.warn input{border-color:var(--warn)}
@@ -68,14 +84,16 @@ input[type=checkbox]{width:auto}
 <script>
 const KEY='hodwar-heaven-v1';
 const ALT=[
- ['A','[최우선공격조]','불안탄 요새'],['B','[최우선공격조]','불안탄 주성'],
- ['C','[공격조1]','주둔지 1-9'],['D','[공격조2]','주둔지 10-17'],
- ['E','[비상대기조]','주성'],['F','[비상대기조]','주둔지'],['G','[막타조]','막타']];
+ ['공-요','[최우선공격조]','불안탄 요새'],['공-성','[최우선공격조]','불안탄 주성'],
+ ['공-둔','[공격조1]','주둔지'],['비-성','[비상대기조]','주성'],
+ ['비-둔','[비상대기조]','주둔지'],['막','[막타조]','막타']];
+const SUBS=['1-6','7-13','14-17'];
+const MIG={A:'공-요',B:'공-성',C:'공-둔',D:'공-둔',E:'비-성',F:'비-둔',G:'막'};
 const ROLE_WORDS=['부길드마스터','길드마스터','부길드장','길드장','부마스터','마스터','장로','간부','정예','길드원','멤버'];
-const TABS=[['rank','🏆','순위'],['change','📈','성장'],['party','⚔️','파티'],['alt','🛡️','알터렉'],['input','📷','입력']];
+const TABS=[['rank','🏆','순위'],['change','📈','성장'],['party','⚔️','파티'],['alt','🛡️','알터랙'],['input','📷','입력']];
 
 let S=load(); let tab='rank'; let draft=[];
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.members)return s}catch(e){}return{members:[],filters:{rank:false,change:false,party:false}}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.members){s.members.forEach(m=>{if(m.alt)m.alt=[...new Set(m.alt.map(x=>MIG[x]||x))]});return s}}catch(e){}return{members:[],filters:{rank:false,change:false,party:false}}}
 let STORE_OK=true,SAVED_AT='';
 function probeStore(){try{localStorage.setItem(KEY+'-probe','1');const ok=localStorage.getItem(KEY+'-probe')==='1';localStorage.removeItem(KEY+'-probe');return ok}catch(e){return false}}
 function save(){
@@ -181,12 +199,149 @@ function vParty(){
   p.map((g,i)=>`<div class="card party"><h3>${i+1}파티</h3>${g.map(e=>`<div class="m"><span>${esc(e.m.name)}${badges(e.m)}</span><b>${fmt(e.p)}</b></div>`).join('')}</div>`).join(''):'<div class="empty">데이터가 없습니다.</div>');
 }
 
+/* ---------- 알터랙 (길드원 역할 배정 + 적 수비 정보) ---------- */
+const ECODES=['C','F1','F2'].concat(Array.from({length:17},(_,i)=>'G'+(17-i)));
+const eLabel=k=>k==='C'?'주성':k==='F1'?'요새1':k==='F2'?'요새2':'주둔지'+k.slice(1);
+const eget=k=>(S.enemy&&S.enemy[k])||{n:'',p:0};
+const roleText=m=>(m.alt||[]).map(r=>r==='공-둔'&&(m.altSub||[]).length?'공-둔('+m.altSub.join(',')+')':r).join(' ');
+function altSummary(){
+  const l=pool(false),lines=[];
+  ALT.forEach(a=>{const ms=l.filter(m=>(m.alt||[]).includes(a[0]));
+    lines.push({title:`${a[0]} ${a[1]} ${a[2]} (${ms.length}명)`,names:ms.map(m=>m.name).join(', ')});
+    if(a[0]==='공-둔'){
+      SUBS.forEach(s=>{const sm=ms.filter(m=>(m.altSub||[]).includes(s));lines.push({sub:true,title:`└ 주둔지 ${s} (${sm.length}명)`,names:sm.map(m=>m.name).join(', ')})});
+      const un=ms.filter(m=>!(m.altSub||[]).length);if(un.length)lines.push({sub:true,title:`└ 구간 미지정 (${un.length}명)`,names:un.map(m=>m.name).join(', ')});
+    }
+  });
+  return lines;
+}
 function vAlt(){
   const l=pool(false);
-  const sum=ALT.map(a=>{const n=l.filter(m=>(m.alt||[]).includes(a[0])).map(m=>m.name);return `<div class="legend"><div><b>${a[0]}</b>${a[1]} ${a[2]} <span class="sub">(${n.length}명)</span></div>${n.length?`<div class="sub" style="padding-left:18px">${n.map(esc).join(', ')}</div>`:''}</div>`}).join('');
-  $('main').innerHTML=`<div class="card legend">${ALT.map(a=>`<div><b>${a[0]}</b>${a[1]} ${a[2]}</div>`).join('')}</div>`+
-  (l.length?l.map((m,i)=>`<div class="card"><div style="display:flex;justify-content:space-between"><b>${i+1}. ${esc(m.name)}${badges(m)}</b><span class="sub">${fmt(latest(m))}</span></div><div class="chips">${ALT.map(a=>`<label><input type="checkbox" data-alt="${a[0]}" data-n="${esc(m.name)}" ${(m.alt||[]).includes(a[0])?'checked':''}><span>${a[0]}</span></label>`).join('')}</div></div>`).join('')+
-  `<div class="card"><b>조 편성 요약</b><div style="margin-top:6px">${sum}</div></div><div class="bar"><button class="btn sec" data-act="copyalt">📋 요약 복사</button>${IMGBTN('alt')}<button class="btn dg" data-act="resetalt">전체 해제</button></div>`:'<div class="empty">길드원 데이터가 없습니다.</div>');
+  const left=l.map((m,i)=>{const a=m.alt||[];
+    return `<div class="acard"><div class="ah"><span class="no">${i+1}</span><b class="an">${esc(m.name)}</b><span class="ap">${fmt(latest(m))}</span></div>
+    <div class="chips">${ALT.map(r=>`<label><input type="checkbox" data-alt="${r[0]}" data-n="${esc(m.name)}" ${a.includes(r[0])?'checked':''}><span>${r[0]}</span></label>`).join('')}</div>
+    ${a.includes('공-둔')?`<div class="chips sub">${SUBS.map(s=>`<label><input type="checkbox" data-sub="${s}" data-n="${esc(m.name)}" ${(m.altSub||[]).includes(s)?'checked':''}><span>${s}</span></label>`).join('')}</div>`:''}</div>`}).join('');
+  const right=ECODES.map(k=>{const e=eget(k);return `<div class="erow" data-ek="${k}"><b>${eLabel(k)}</b><span class="en">${esc(e.n||'')}</span><span class="ep">${e.p?fmt(e.p):'—'}</span></div>`}).join('');
+  const sum=altSummary().map(x=>`<div class="legend"><div${x.sub?' style="padding-left:14px"':''}><b style="width:auto">${esc(x.title)}</b></div>${x.names?`<div class="sub" style="padding-left:${x.sub?28:2}px">${esc(x.names)}</div>`:''}</div>`).join('');
+  $('main').innerHTML=`<div class="sub" style="margin-bottom:6px">길드원 ${l.length}명 · 대기자는 제외됩니다</div>
+  <div class="altgrid"><div class="altL">${left||'<div class="empty">길드원이 없습니다</div>'}</div>
+  <div class="altR"><div class="acard"><b>적 (수비)</b>
+    <div class="bar" style="margin:6px 0 0;gap:6px"><button class="btn sec sm" data-act="eup">📷 캡처</button><button class="btn dg sm" data-act="eclear">비우기</button></div>
+    <input type="file" id="efiles" accept="image/*" multiple hidden><div class="sub" id="est" style="margin-top:4px">칸을 누르면 수정</div></div>${right}</div></div>
+  <div class="card" style="margin-top:10px"><b>조 편성 요약</b><div style="margin-top:6px">${sum}</div></div>
+  <div class="bar"><button class="btn sec" data-act="copyalt">📋 요약 복사</button>${IMGBTN('alt')}<button class="btn dg" data-act="resetalt">전체 해제</button></div>`;
+}
+function openEnemy(k){
+  const e=eget(k),u=e.p>=1e9?'B':'M',v=e.p?+(e.p>=1e9?e.p/1e9:e.p/1e6).toFixed(3):'';
+  $('sheet').dataset.ek=k;
+  $('sheet').innerHTML=`<div class="sheet"><div><h3 style="margin:0 0 4px">적 · ${eLabel(k)}</h3>
+  <label>이름 (선택)</label><input id="e_name" value="${esc(e.n||'')}">
+  <label>전투력 (비우면 공백)</label><div class="two"><input id="e_val" inputmode="decimal" value="${v}"><select id="e_unit"><option${u==='B'?' selected':''}>B</option><option${u==='M'?' selected':''}>M</option></select></div>
+  <div class="bar" style="margin-top:14px"><button class="btn sec" data-sheet="close">닫기</button><button class="btn" data-act="esave">저장</button></div></div></div>`;
+}
+function saveEnemy(){
+  const k=$('sheet').dataset.ek,v=parseFloat($('e_val').value);
+  S.enemy=S.enemy||{};S.enemy[k]={n:$('e_name').value.trim(),p:v>0?raw(v,$('e_unit').value):0};
+  save();$('sheet').innerHTML='';render();
+}
+/* --- 적 캡처 인식: 초록색 체력바 위치로 노드를 찾고, 전투력/라벨을 읽음 --- */
+function findBars(cv){
+  const W=cv.W,H=cv.H,px=cv.px,runs=[];
+  for(let y=0;y<H;y++){
+    let s=-1,last=-99;
+    for(let x=0;x<W;x++){const i=(y*W+x)*4,r=px[i],g=px[i+1],b=px[i+2];
+      if(g>140&&g-b>80&&g>=r-10&&r<215){if(s<0)s=x;last=x}
+      else if(s>=0&&x-last>45){if(last-s+1>=150)runs.push([y,s,last]);s=-1}}
+    if(s>=0&&last-s+1>=150)runs.push([y,s,last]);
+  }
+  const groups=[];
+  for(const r of runs){const g=groups.find(g=>Math.abs(g.y1-r[0])<=2&&Math.abs(g.x0-r[1])<30&&Math.abs(g.x1-r[2])<30);
+    if(g){g.y1=r[0];g.n++}else groups.push({y0:r[0],y1:r[0],x0:r[1],x1:r[2],n:1})}
+  return groups.filter(g=>g.n>=5);
+}
+function parseEP(t){
+  let c=(t||'').replace(/[^0-9.BM]/g,'');
+  if(!c.includes('.')){const D=c.replace(/[BM]/g,''),L=D.length;
+    if(L===4&&/[68]$/.test(D))c=D[0]+'.'+D.slice(1,3)+'B';
+    else if(L===3&&/B/.test(c))c=D[0]+'.'+D.slice(1)+'B';
+    else if(L===5&&/8$/.test(D))c=D.slice(0,2)+'.'+D.slice(2,4)+'B';
+    else if(L===5||L===6)c=D.slice(0,3)+'.'+D.slice(3,5)+'M';
+    else return null}
+  const m=c.match(/^(\d{1,3})\.(\d{1,2})(.*)$/);if(!m)return null;
+  const tail=m[3];let unit;
+  if(tail.includes('B')||tail[0]==='8')unit='B';else if(tail)unit='M';else unit=m[1].length===1?'B':'M';
+  return{val:m[1]+'.'+m[2],unit};
+}
+async function readEnemyPower(cv,b,W){
+  const votes={};
+  for(const off of [32,28,36,40]){
+    const p=parseEP((await W.p.recognize(crop(cv,b.x0+off,b.y0-56,b.x1-b.x0-off+22,46,3))).data.text);
+    if(p){const k=p.val+p.unit;(votes[k]=votes[k]||{p,n:0}).n++;if(votes[k].n>=3)break}}
+  const top=Object.values(votes).sort((a,c)=>c.n-a.n)[0];
+  return top?{val:top.p.val,unit:top.p.unit,n:top.n}:null;
+}
+async function readEnemyLabel(cv,b,W){
+  const texts=[];
+  for(const [dx0,dx1,dy0,dy1,s] of [[-70,135,40,92,3],[-60,125,44,88,4],[-80,150,36,96,3]])
+    texts.push((await W.k.recognize(crop(cv,Math.max(0,b.x0+dx0),b.y0+dy0,dx1-dx0,dy1-dy0,s))).data.text);
+  const all=texts.join(' ');
+  if(/주둔|일반|둔지|듄지/.test(all)||/[지시]\s*\d/.test(all)){
+    const votes={};
+    texts.forEach(t=>{const m=t.match(/[지시]\s*(\d{1,3})/);if(m){let d=m[1];if(+d>17)d=d.slice(0,2);if(+d>17)d=d[0];if(+d>=1&&+d<=17)votes[d]=(votes[d]||0)+1}});
+    const top=Object.entries(votes).sort((a,c)=>c[1]-a[1])[0];
+    return{type:'G',n:top?+top[0]:0};
+  }
+  if(/요|새/.test(all))return{type:'F'};
+  if(/성/.test(all))return{type:'C'};
+  return{type:''};
+}
+async function runEnemyOcr(files){
+  const st=$('est'),W={};
+  const say=t=>{if($('est'))$('est').textContent=t};
+  try{
+    say('OCR 엔진 로딩 중…(처음에는 오래 걸립니다)');await loadTess();
+    W.p=await Tesseract.createWorker('eng');await W.p.setParameters({tessedit_char_whitelist:'0123456789.BM',tessedit_pageseg_mode:'7'});
+    W.k=await Tesseract.createWorker('kor+eng');await W.k.setParameters({tessedit_pageseg_mode:'7'});
+    const nodes=[];
+    for(let i=0;i<files.length;i++){
+      const cv=norm(await loadImg(files[i]),1080);
+      const bars=findBars(cv).sort((a,b)=>a.y0-b.y0||a.x0-b.x0),found=[];
+      for(const b of bars){
+        say(`이미지 ${i+1}/${files.length} · 노드 ${found.length+1}/${bars.length} 분석 중…`);
+        found.push({b,p:await readEnemyPower(cv,b,W),lb:await readEnemyLabel(cv,b,W)});
+      }
+      const F=found.filter(x=>x.lb.type==='F').sort((a,c)=>a.b.x0-c.b.x0);
+      F.forEach((x,idx)=>{x.slot=F.length===2?(idx===0?'F2':'F1'):((x.b.x0+x.b.x1)/2<cv.W/2?'F2':'F1')});
+      found.forEach(x=>{if(x.lb.type==='C')x.slot='C';else if(x.lb.type==='G'&&x.lb.n)x.slot='G'+x.lb.n});
+      if(found.length&&!found.some(x=>x.slot==='C')){const c0=found[0];if(!c0.slot&&!c0.lb.type&&Math.abs((c0.b.x0+c0.b.x1)/2-cv.W*0.59)<200)c0.slot='C'}
+      found.forEach(x=>nodes.push({slot:x.slot||'',val:x.p?x.p.val+x.p.unit:'',n:x.p?x.p.n:0}));
+    }
+    const out=[],seen={};
+    nodes.forEach(n=>{if(n.slot&&seen[n.slot]){if(n.n>seen[n.slot].n)Object.assign(seen[n.slot],n)}else{const c={...n};out.push(c);if(n.slot)seen[n.slot]=c}});
+    out.sort((a,c)=>(ECODES.indexOf(a.slot)+99*(a.slot?0:1))-(ECODES.indexOf(c.slot)+99*(c.slot?0:1)));
+    say(`${out.length}개 노드 인식`);
+    if(!out.length)return alert('적 노드를 찾지 못했습니다. 알터랙 전투 지도 화면 캡처인지 확인하세요.');
+    showEnemyResult(out);
+  }catch(e){say('오류: '+e.message);console.error(e)}
+  finally{for(const w of Object.values(W))w.terminate()}
+}
+function showEnemyResult(nodes){
+  const opts=sel=>'<option value="">(제외/미지정)</option>'+ECODES.map(k=>`<option value="${k}"${k===sel?' selected':''}>${eLabel(k)}</option>`).join('');
+  $('sheet').innerHTML=`<div class="sheet"><div><h3 style="margin:0 0 4px">적 인식 결과 (${nodes.length}개)</h3>
+  <div class="sub">자리(주성/요새/주둔지)와 전투력을 확인·수정한 뒤 저장하세요. 가려져 인식되지 않은 자리는 건드리지 않고 그대로 둡니다.</div>
+  ${nodes.map((n,i)=>`<div class="card" style="padding:8px"><select data-er="${i}">${opts(n.slot)}</select>
+   <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:6px;margin-top:6px"><input data-ev="${i}" value="${esc(n.val)}" placeholder="예: 962.69M"><input data-en="${i}" placeholder="이름(선택)"></div></div>`).join('')}
+  <div class="bar" style="margin-top:12px"><button class="btn sec" data-sheet="close">취소</button><button class="btn" data-act="eapply">저장</button></div></div></div>`;
+}
+function applyEnemy(){
+  S.enemy=S.enemy||{};let n=0;
+  document.querySelectorAll('#sheet select[data-er]').forEach(sel=>{
+    const i=sel.dataset.er,slot=sel.value;if(!slot)return;
+    const m=($('sheet').querySelector('[data-ev="'+i+'"]').value||'').replace(/[, ]/g,'').match(/^(\d+(?:\.\d+)?)([BbMm])$/);
+    if(!m)return;
+    S.enemy[slot]={n:$('sheet').querySelector('[data-en="'+i+'"]').value.trim()||(S.enemy[slot]&&S.enemy[slot].n)||'',p:raw(m[1],m[2].toUpperCase())};n++;
+  });
+  save();$('sheet').innerHTML='';render();toast('적 정보 '+n+'곳 저장');
 }
 
 function vInput(){
@@ -214,7 +369,7 @@ async function loadTess(){if(window.Tesseract)return;await new Promise((ok,no)=>
 const LAY={top:372,bot:1272,pitch:124,nameY:39,powY:76,ratio:1560/720};
 const POW_VARIANTS=[[220,4],[222,4],[224,4],[220,3],[222,5],[226,4]];
 function loadImg(file){return new Promise((ok,no)=>{const u=URL.createObjectURL(file),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);ok(i)};i.onerror=()=>no(new Error('이미지를 열 수 없습니다'));i.src=u})}
-function norm(img){const w=720,h=Math.round(img.height*720/img.width),c=document.createElement('canvas');c.width=w;c.height=h;
+function norm(img,w=720){const h=Math.round(img.height*w/img.width),c=document.createElement('canvas');c.width=w;c.height=h;
   const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
   return{c,W:w,H:h,px:x.getImageData(0,0,w,h).data,ratio:img.height/img.width}}
 function crop(cv,l,t,w,h,s){
@@ -444,10 +599,12 @@ function pageItems(k){
   if(k==='party'){const p=parties(),items=[];
     p.forEach((g,i)=>{items.push({head:`${i+1}파티`});g.forEach(e=>items.push({t:e.m.name,tag:e.m.guild?'':'대기',r:fmt(e.p)}))});
     return{name:'파티',sub:`파티던전 · ${p.length}개 파티`+(S.filters.party?' (길드 외 포함)':'')+`\n순위 기준일: ${partyDate()||'최신'}`+(partyMissing().length?`\n⚠ 제외: ${partyMissing().join(', ')}`:''),items}}
-  const l=pool(false),items=l.map((m,i)=>({no:i+1,t:m.name,tag:fmt(latest(m)),r:(m.alt||[]).join(' ')||'-'}));
+  const l=pool(false),items=l.map((m,i)=>({no:i+1,t:m.name,tag:fmt(latest(m)),r:roleText(m)||'-'}));
   items.push({head:'조 편성 요약'});
-  ALT.forEach(a=>{const n=l.filter(m=>(m.alt||[]).includes(a[0])).map(m=>m.name);items.push({text:`${a[0]} ${a[1]} ${a[2]} (${n.length}명)`,bold:true});if(n.length)items.push({text:n.join(', ')})});
-  return{name:'알터렉',sub:'알터렉 전투 조 편성',items};
+  altSummary().forEach(x=>{items.push({text:x.title,bold:!x.sub});if(x.names)items.push({text:x.names})});
+  items.push({head:'적 (수비)'});
+  ECODES.forEach(k=>{const e=eget(k);items.push({t:eLabel(k)+(e.n?' '+e.n:''),r:e.p?fmt(e.p):'—'})});
+  return{name:'알터랙',sub:'알터랙 전투 조 편성',items};
 }
 /* 폰에서 확대 없이 보도록: 좁은 폭(480) + 큰 글씨 + 이름과 값 간격 최소화 */
 function saveImage(k){
@@ -599,11 +756,13 @@ function tableData(k){
   if(k==='rank')return[['순위','이름','직책','구분','전투력','전투력(M)','기록일']].concat(pool(S.filters.rank).map((m,i)=>[i+1,m.name,m.role,m.guild?'길드원':'대기',fmt(latest(m)),M(latest(m)),latestDate(m)]));
   if(k==='change')return[['전투력순위',mLabel()+'순위','이름','기준','이전(M)','현재(M)','성장 전투력(M)','성장률(%)','이전일','현재일']].concat(changes(S.filters.change).map(c=>[c.pr,c.rr||'',c.m.name,cLabel(),c.a?M(c.a):'',M(c.b),c.pct===null?'':M(c.diff),c.pct===null?'':+c.pct.toFixed(2),c.d0||'',c.d1]));
   if(k==='party'){const r=[['파티','이름','전투력','전투력(M)']];parties().forEach((g,i)=>g.forEach(e=>r.push([i+1,e.m.name,fmt(e.p),M(e.p)])));return r}
-  return[['순위','이름','전투력(M)'].concat(ALT.map(a=>a[0]))].concat(pool(false).map((m,i)=>[i+1,m.name,M(latest(m))].concat(ALT.map(a=>(m.alt||[]).includes(a[0])?'O':''))));
+  return[['순위','이름','전투력(M)'].concat(ALT.map(a=>a[0]),['공-둔 구간'])].concat(pool(false).map((m,i)=>[i+1,m.name,M(latest(m))].concat(ALT.map(a=>(m.alt||[]).includes(a[0])?'O':''),[(m.altSub||[]).join(',')])))
+    .concat([[],['','적 자리','이름','전투력(M)']],ECODES.map(k=>{const e=eget(k);return['',eLabel(k),e.n||'',e.p?M(e.p):'']}));
 }
 function copyTable(k){const t=tableData(k);if(t.length<2)return alert('복사할 명단이 없습니다');copy(t.map(r=>r.join('\t')).join('\n'),'표가 복사되었습니다. 엑셀에서 붙여넣기(Ctrl+V) 하세요.')}
 document.addEventListener('click',e=>{
-  const t=e.target.closest('button,[data-edit]');if(!t)return;
+  const t=e.target.closest('button,[data-edit],[data-ek]');if(!t)return;
+  if(t.dataset.ek){openEnemy(t.dataset.ek);return}
   if(t.dataset.cmetric){S.cmetric=t.dataset.cmetric;save();render();return}
   if(t.dataset.cmode){S.cmode=t.dataset.cmode;save();render();return}
   if(t.dataset.tab){tab=t.dataset.tab;render();scrollTo(0,0);return}
@@ -633,11 +792,15 @@ document.addEventListener('click',e=>{
     case'askCancel':$('sheet').innerHTML='';window.__ask=null;break;
     case'roles':openRoles();break;
     case'rolesave':saveRoles();break;
+    case'eup':$('efiles').click();break;
+    case'eclear':if(confirm('적 정보를 모두 비울까요?')){S.enemy={};save();render()}break;
+    case'esave':saveEnemy();break;
+    case'eapply':applyEnemy();break;
     case'img':saveImage(t.dataset.k);break;
     case'tbl':copyTable(t.dataset.k);break;
     case'copyparty':copy(parties().map((g,i)=>`[${i+1}파티] `+g.map(e=>e.m.name).join(', ')).join('\n'));break;
-    case'copyalt':copy(ALT.map(a=>`${a[0]}:${a[1]} ${a[2]} - `+pool(false).filter(m=>(m.alt||[]).includes(a[0])).map(m=>m.name).join(', ')).join('\n'));break;
-    case'resetalt':if(confirm('모든 조 편성을 해제할까요?')){S.members.forEach(m=>m.alt=[]);save();render()}break;
+    case'copyalt':copy(altSummary().map(x=>x.title+(x.names?' : '+x.names:'')).join('\n'));break;
+    case'resetalt':if(confirm('모든 조 편성을 해제할까요?')){S.members.forEach(m=>{m.alt=[];m.altSub=[]});save();render()}break;
     case'export':{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download=`guild-backup-${today()}.json`;a.click();break}
     case'import':$('imp').click();break;
     case'wipe':if(confirm('모든 데이터를 삭제합니다. 계속할까요?')){S={members:[],filters:{rank:false,change:false,party:false}};save();render()}break;
@@ -647,7 +810,9 @@ document.addEventListener('change',e=>{
   const t=e.target;
   if(t.dataset.pdate!==undefined){S.pdate=t.value;save();render();const pm=partyMissing();if(pm.length)alert('⚠ '+missMsg(partyDate(),pm)+'\n\n이 멤버들은 파티에 포함되지 않습니다.')}
   else if(t.dataset.filter){S.filters[t.dataset.filter]=t.checked;save();render()}
-  else if(t.dataset.alt){const m=find(t.dataset.n);m.alt=m.alt||[];const k=t.dataset.alt;m.alt=t.checked?[...new Set([...m.alt,k])]:m.alt.filter(x=>x!==k);save();vAlt()}
+  else if(t.dataset.alt){const m=find(t.dataset.n);m.alt=m.alt||[];const k=t.dataset.alt;m.alt=t.checked?[...new Set([...m.alt,k])]:m.alt.filter(x=>x!==k);if(k==='공-둔'&&!t.checked)m.altSub=[];save();vAlt()}
+  else if(t.dataset.sub){const m=find(t.dataset.n);m.altSub=t.checked?[t.dataset.sub]:[];save();vAlt()}
+  else if(t.id==='efiles'&&t.files.length){const fl=[...t.files];t.value='';runEnemyOcr(fl)}
   else if(t.id==='imp'&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.members)throw 0;S=d;S.filters=S.filters||{};save();render();alert('복원 완료')}catch(_){alert('올바른 백업 파일이 아닙니다')}};r.readAsText(t.files[0])}
 });
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='qa_name'){e.preventDefault();$('qa_val').focus()}else if(e.target.id==='qa_val'){e.preventDefault();quickAdd()}});
