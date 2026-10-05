@@ -108,7 +108,12 @@ function render(){
 
 function vRank(){
   const l=pool(S.filters.rank);
-  $('main').innerHTML=toggle('rank')+`<div class="bar"><button class="btn sec" data-act="add">＋ 대기자/멤버 추가</button><button class="btn sec" data-act="roles">👑 직책 설정</button>${IMGBTN('rank')}</div>`+
+  $('main').innerHTML=toggle('rank')+`<div class="card"><b>＋ 대기자 빠른 추가</b> <span class="sub">(이름·전투력 입력 후 Enter)</span>
+  <input id="qa_name" placeholder="이름" autocomplete="off" style="margin-top:8px">
+  <div class="two" style="margin-top:6px"><input id="qa_val" inputmode="decimal" placeholder="전투력 (예: 250.5)"><select id="qa_unit"><option${(S.qunit||'M')==='B'?' selected':''}>B</option><option${(S.qunit||'M')==='M'?' selected':''}>M</option></select></div>
+  <label class="tog" style="margin:8px 0 0"><input type="checkbox" id="qa_guild"> 길드원으로 추가 (체크 안 하면 대기자)</label>
+  <button class="btn" style="width:100%;margin-top:8px" data-act="qadd">추가</button></div>
+  <div class="bar"><button class="btn sec" data-act="roles">👑 직책 설정</button>${IMGBTN('rank')}</div>`+
   (l.length?l.map((m,i)=>`<div class="row g${Math.floor(i/5)%2}" data-edit="${esc(m.name)}"><div class="no">${i+1}</div><div class="nm"><b>${esc(m.name)}${badges(m)}</b><span class="sub">${latestDate(m)} · ✏️ 눌러서 수정</span></div><div class="val"><b>${fmt(latest(m))}</b></div></div>`).join(''):'<div class="empty">데이터가 없습니다.<br>[입력] 탭에서 캡처를 올려주세요.</div>');
 }
 
@@ -333,15 +338,66 @@ function parseText(text){
   }
   return rows;
 }
+/* ---------- 저장 (같은 날짜는 덮어쓰기) + 새 이름 확인 ---------- */
 function commit(){
-  const date=$('dt').value||today();let u=0;draft.forEach(r=>{if(!r.name.trim()&&parseFloat(r.val)>0){while(find('미확인'+(++u)));r.name='미확인'+u}});const ok=draft.filter(r=>r.name.trim()&&parseFloat(r.val)>0);
+  const date=$('dt').value||today();let u=0;
+  draft.forEach(r=>{if(!r.name.trim()&&parseFloat(r.val)>0){while(find('미확인'+(++u)));r.name='미확인'+u}});
+  const ok=draft.filter(r=>r.name.trim()&&parseFloat(r.val)>0);
   if(!ok.length)return alert('저장할 항목이 없습니다');
-  const names=new Set();
+  const unknown=S.members.length?ok.filter(r=>!find(r.name.trim())):[];
+  if(!unknown.length)return doCommit(ok,date);
+  showMatchAsk(ok,date,unknown);
+}
+function doCommit(ok,date){
+  const names=new Set();let over=0,added=0,fresh=0;
   ok.forEach(r=>{const n=r.name.trim();names.add(n);let m=find(n);
-    if(!m){m={name:n,role:'',guild:true,history:{},alt:[]};S.members.push(m)}
-    if(!m.role)m.role=r.role.trim()||'멤버';m.guild=true;m.history[date]=raw(r.val,r.unit)});
-  if($('demote').checked)S.members.forEach(m=>{if(m.guild&&!names.has(m.name))m.guild=false});
+    if(!m){m={name:n,role:'',guild:true,history:{},alt:[]};S.members.push(m);fresh++}
+    if(!m.role)m.role=r.role.trim()||'멤버';
+    m.guild=true;const v=raw(r.val,r.unit);
+    if(date in m.history){if(m.history[date]!==v)over++}else added++;
+    m.history[date]=v});
+  if($('demote')&&$('demote').checked)S.members.forEach(m=>{if(m.guild&&!names.has(m.name))m.guild=false});
   save();draft=[];tab='rank';render();
+  toast(`${date} 기준 ${ok.length}명 저장`+(fresh?` · 새 멤버 ${fresh}명`:'')+(over?` · 같은 날짜 기록 ${over}건 덮어씀`:''));
+}
+function showMatchAsk(ok,date,unknown){
+  const taken=new Set(ok.map(r=>r.name.trim()));
+  const cands=unknown.map(r=>{const p=raw(r.val,r.unit),nm=r.name.trim();
+    const list=S.members.filter(m=>!taken.has(m.name)&&dates(m).length)
+      .map(m=>({m,sim:nameSim(nm,m.name),ln:absLn(p,latest(m))}))
+      .map(x=>({...x,score:x.sim*2-x.ln*3})).sort((a,b)=>b.score-a.score).slice(0,3);
+    const top=list[0],def=top&&(top.sim>=0.5||(top.sim>=0.34&&top.ln<0.15))?0:-1;
+    return{r,list,def}});
+  window.__ask={ok,date,cands};
+  $('sheet').innerHTML=`<div class="sheet"><div>
+  <h3 style="margin:0 0 4px">처음 보는 이름이 ${cands.length}명 있어요</h3>
+  <div class="sub">기존 멤버의 이름이 다르게 읽힌 것인지, 새 멤버인지 골라주세요.</div>
+  <div class="bar" style="margin-top:10px"><button class="btn sec sm" data-act="askNew">전부 새 멤버로</button></div>
+  ${cands.map((c,i)=>`<div class="card" style="padding:10px"><b>'${esc(c.r.name)}'</b> <span class="sub">${c.r.val}${c.r.unit}</span>
+   ${c.list.map((x,j)=>`<label class="tog" style="margin:6px 0 0"><input type="radio" name="mq${i}" value="${j}" ${c.def===j?'checked':''}> <span>기존 멤버 <b>${esc(x.m.name)}</b> <span class="sub">(${fmt(latest(x.m))}${x.m.guild?'':' · 대기'})</span></span></label>`).join('')}
+   <label class="tog" style="margin:6px 0 0"><input type="radio" name="mq${i}" value="new" ${c.def===-1?'checked':''}> 새로운 길드원 <b>${esc(c.r.name)}</b></label></div>`).join('')}
+  <div class="bar" style="margin-top:12px"><button class="btn sec" data-act="askCancel">취소</button><button class="btn" data-act="askApply">저장</button></div></div></div>`;
+}
+function applyAsk(){
+  const{ok,date,cands}=window.__ask,used=new Set();
+  for(let i=0;i<cands.length;i++){
+    const v=(document.querySelector('#sheet input[name="mq'+i+'"]:checked')||{}).value;
+    if(v!==undefined&&v!=='new'){const m=cands[i].list[+v].m;
+      if(used.has(m.name))return alert('같은 기존 멤버('+m.name+')가 두 번 선택되었습니다');
+      used.add(m.name);cands[i].r.name=m.name}
+  }
+  $('sheet').innerHTML='';window.__ask=null;doCommit(ok,date);
+}
+/* ---------- 빠른 추가 (기본: 대기자) ---------- */
+function quickAdd(){
+  const name=$('qa_name').value.trim(),v=parseFloat($('qa_val').value),unit=$('qa_unit').value;
+  if(!name)return alert('이름을 입력하세요');
+  if(!(v>0))return alert('전투력을 입력하세요');
+  S.qunit=unit;const d=today(),p=raw(v,unit),guild=$('qa_guild').checked;let m=find(name);
+  if(m){if(!confirm(name+' 은(는) 이미 있습니다. 오늘('+d+') 전투력 기록을 '+fmt(p)+' 로 갱신할까요?'))return;m.history[d]=p}
+  else S.members.push({name,role:'멤버',guild,history:{[d]:p},alt:[]});
+  save();render();toast(name+(m?' 기록 갱신 완료':guild?' 길드원으로 추가 완료':' 대기자로 추가 완료'));
+  const el=$('qa_name');if(el)el.focus();
 }
 
 /* ---------- 멤버 편집 시트 ---------- */
@@ -568,6 +624,10 @@ document.addEventListener('click',e=>{
     case'cfshared':setAllPicks('shared');break;
     case'cfapply':applyPicks();break;
     case'cfcancel':$('sheet').innerHTML='';window.__pending=null;break;
+    case'qadd':quickAdd();break;
+    case'askNew':document.querySelectorAll('#sheet input[type=radio][value="new"]').forEach(r=>r.checked=true);break;
+    case'askApply':applyAsk();break;
+    case'askCancel':$('sheet').innerHTML='';window.__ask=null;break;
     case'roles':openRoles();break;
     case'rolesave':saveRoles();break;
     case'img':saveImage(t.dataset.k);break;
@@ -587,6 +647,7 @@ document.addEventListener('change',e=>{
   else if(t.dataset.alt){const m=find(t.dataset.n);m.alt=m.alt||[];const k=t.dataset.alt;m.alt=t.checked?[...new Set([...m.alt,k])]:m.alt.filter(x=>x!==k);save();vAlt()}
   else if(t.id==='imp'&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.members)throw 0;S=d;S.filters=S.filters||{};save();render();alert('복원 완료')}catch(_){alert('올바른 백업 파일이 아닙니다')}};r.readAsText(t.files[0])}
 });
+document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='qa_name'){e.preventDefault();$('qa_val').focus()}else if(e.target.id==='qa_val'){e.preventDefault();quickAdd()}});
 document.addEventListener('input',e=>{const t=e.target;if(t.dataset.i!==undefined)draft[+t.dataset.i][t.dataset.f]=t.value});
 render();
 if(!S.members.length)loadShared(true);
