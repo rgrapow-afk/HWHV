@@ -72,7 +72,7 @@ const ALT=[
  ['C','[공격조1]','주둔지 1-9'],['D','[공격조2]','주둔지 10-17'],
  ['E','[비상대기조]','주성'],['F','[비상대기조]','주둔지'],['G','[막타조]','막타']];
 const ROLE_WORDS=['부길드마스터','길드마스터','부길드장','길드장','부마스터','마스터','장로','간부','정예','길드원','멤버'];
-const TABS=[['rank','🏆','순위'],['change','📈','변화'],['party','⚔️','파티'],['alt','🛡️','알터렉'],['input','📷','입력']];
+const TABS=[['rank','🏆','순위'],['change','📈','성장'],['party','⚔️','파티'],['alt','🛡️','알터렉'],['input','📷','입력']];
 
 let S=load(); let tab='rank'; let draft=[];
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.members)return s}catch(e){}return{members:[],filters:{rank:false,change:false,party:false}}}
@@ -106,14 +106,16 @@ function render(){
   if(!STORE_OK)$('main').insertAdjacentHTML('afterbegin','<div class="warnbox">⚠ 이 화면에서는 <b>데이터가 저장되지 않습니다</b>. 파일을 직접 열었거나(file:// , 앱 미리보기, 시크릿 모드) 저장이 막힌 상태예요. 크롬에서 <b>웹 주소(https)</b>로 접속하세요. 그 전에는 [입력] 탭의 <b>백업(파일)</b>으로 데이터를 보관하세요.</div>');
 }
 
+let qaOpen=false;
 function vRank(){
   const l=pool(S.filters.rank);
-  $('main').innerHTML=toggle('rank')+`<div class="card"><b>＋ 대기자 빠른 추가</b> <span class="sub">(이름·전투력 입력 후 Enter)</span>
+  const bs='style="flex:1 1 0;padding:10px 4px;font-size:14px;white-space:nowrap"';
+  const qa=qaOpen?`<div class="card"><b>＋ 대기자 빠른 추가</b> <span class="sub">(이름·전투력 입력 후 Enter)</span>
   <input id="qa_name" placeholder="이름" autocomplete="off" style="margin-top:8px">
   <div class="two" style="margin-top:6px"><input id="qa_val" inputmode="decimal" placeholder="전투력 (예: 250.5)"><select id="qa_unit"><option${(S.qunit||'M')==='B'?' selected':''}>B</option><option${(S.qunit||'M')==='M'?' selected':''}>M</option></select></div>
   <label class="tog" style="margin:8px 0 0"><input type="checkbox" id="qa_guild"> 길드원으로 추가 (체크 안 하면 대기자)</label>
-  <button class="btn" style="width:100%;margin-top:8px" data-act="qadd">추가</button></div>
-  <div class="bar"><button class="btn sec" data-act="roles">👑 직책 설정</button>${IMGBTN('rank')}</div>`+
+  <div class="bar" style="margin:8px 0 0"><button class="btn sec" data-act="qatoggle">접기</button><button class="btn" data-act="qadd">추가</button></div></div>`:'';
+  $('main').innerHTML=toggle('rank')+`<div class="bar" style="flex-wrap:nowrap;gap:6px"><button class="btn ${qaOpen?'':'sec'}" ${bs} data-act="qatoggle">＋ 대기자 ${qaOpen?'▴':'▾'}</button><button class="btn sec" ${bs} data-act="roles">👑 직책</button><button class="btn sec" ${bs} data-act="img" data-k="rank">🖼 이미지</button><button class="btn sec" ${bs} data-act="tbl" data-k="rank">📊 엑셀</button></div>`+qa+
   (l.length?l.map((m,i)=>`<div class="row g${Math.floor(i/5)%2}" data-edit="${esc(m.name)}"><div class="no">${i+1}</div><div class="nm"><b>${esc(m.name)}${badges(m)}</b><span class="sub">${latestDate(m)} · ✏️ 눌러서 수정</span></div><div class="val"><b>${fmt(latest(m))}</b></div></div>`).join(''):'<div class="empty">데이터가 없습니다.<br>[입력] 탭에서 캡처를 올려주세요.</div>');
 }
 
@@ -140,15 +142,15 @@ function changes(include){
   const w=rows.filter(r=>r.pct!==null).sort((x,y)=>y[key]-x[key]);w.forEach((r,i)=>r.rr=i+1);
   return sortBy==='rate'?[...w,...rows.filter(r=>r.pct===null)]:rows;
 }
-const cMetric=()=>S.cmetric||'pct',mLabel=()=>cMetric()==='abs'?'변화량':'변화율';
+const cMetric=()=>S.cmetric||'pct',mLabel=()=>cMetric()==='abs'?'성장 전투력':'성장률';
 const sdiff=d=>(d>=0?'+':'-')+fmt(Math.abs(d)),spct=p=>(p>=0?'+':'')+p.toFixed(2)+'%';
 const cMain=c=>c.pct===null?'-':cMetric()==='abs'?sdiff(c.diff):spct(c.pct);
 const cSecond=c=>c.pct===null?'':cMetric()==='abs'?spct(c.pct):sdiff(c.diff);
 const cLabel=()=>CMODES.find(x=>x[0]===(S.cmode||'prev'))[1];
 function vChange(){
   const inc=S.filters.change,l=changes(inc),rate=(S.csort||'power')==='rate',mode=S.cmode||'prev';
-  const ctl=`<div class="bar">${CMODES.map(c=>`<button class="btn ${c[0]===mode?'':'sec'}" data-cmode="${c[0]}">${c[1]}</button>`).join('')}</div>
-  <div class="bar">${[['pct','변화율(%)'],['abs','변화량']].map(c=>`<button class="btn ${c[0]===cMetric()?'':'sec'}" data-cmetric="${c[0]}">${c[1]}</button>`).join('')}</div>
+  const ctl=`<div class="bar" style="flex-wrap:nowrap">${CMODES.map(c=>`<button class="btn ${c[0]===mode?'':'sec'}" style="flex:1 1 0;padding:11px 4px" data-cmode="${c[0]}">${c[1]}</button>`).join('')}</div>
+  <div class="bar">${[['pct','성장률(%)'],['abs','성장 전투력']].map(c=>`<button class="btn ${c[0]===cMetric()?'':'sec'}" data-cmetric="${c[0]}">${c[1]}</button>`).join('')}</div>
   <div class="bar"><button class="btn ${rate?'':'sec'}" data-act="csort">${rate?`✓ ${mLabel()} 순위순 (눌러서 해제)`:`📈 ${mLabel()} 순위로 보기`}</button></div>`;
   const row=(c,i)=>{const up=c.pct!==null&&c.pct>=0;
     return `<div class="row g${Math.floor(i/5)%2}" data-edit="${esc(c.m.name)}"><div class="no">${rate?c.rr||'-':c.pr}</div><div class="nm"><b>${esc(c.m.name)}${badges(c.m)}</b><span class="sub">${c.pct===null?(c.fresh?'신규 멤버(비교 제외)':'비교할 기록 없음')+' · 현재 '+fmt(c.b):`${fmt(c.a)} → ${fmt(c.b)}<br>${c.d0} → ${c.d1}`}<br>${rate?'전투력 '+c.pr+'위':(c.rr?mLabel()+' '+c.rr+'위':'')}</span></div><div class="val ${c.pct===null?'':up?'up':'down'}"><b>${cMain(c)}</b>${c.pct===null?'':`<br><span class="sub">${cSecond(c)}</span>`}</div></div>`};
@@ -437,7 +439,7 @@ function pageItems(k){
       items:l.map((m,i)=>({g:Math.floor(i/5)%2,no:i+1,t:m.name,tag:[m.role&&m.role!=='멤버'?m.role:'',m.guild?'':'대기'].filter(Boolean).join(' '),r:fmt(latest(m))}))}}
   if(k==='change'){const l=changes(S.filters.change),rate=(S.csort||'power')==='rate';
     const ref=changeRef();
-    return{name:'변화',sub:`전투력 ${mLabel()}(${cLabel()}) · ${rate?mLabel()+' 순':'전투력 순'} · ${l.length}명`+(S.filters.change?' (길드 외 포함)':'')+(ref.d0?`\n${ref.d0} → ${ref.d1}`:''),
+    return{name:'성장',sub:`전투력 ${mLabel()}(${cLabel()}) · ${rate?mLabel()+' 순':'전투력 순'} · ${l.length}명`+(S.filters.change?' (길드 외 포함)':'')+(ref.d0?`\n${ref.d0} → ${ref.d1}`:''),
       items:l.map((c,i)=>({g:Math.floor(i/5)%2,no:rate?(c.rr||'-'):c.pr,t:c.m.name,tag:c.pct===null?(c.fresh?'신규':'기록없음'):cSecond(c),s:c.pct===null?'':`${fmt(c.a)} → ${fmt(c.b)}  ·  ${rate?'전투력 '+c.pr+'위':mLabel()+' '+c.rr+'위'}`,r:cMain(c),c:c.pct===null?'#9aa0b8':c.pct>=0?'#4ade80':'#f87171'}))}}
   if(k==='party'){const p=parties(),items=[];
     p.forEach((g,i)=>{items.push({head:`${i+1}파티`});g.forEach(e=>items.push({t:e.m.name,tag:e.m.guild?'':'대기',r:fmt(e.p)}))});
@@ -595,7 +597,7 @@ const copy=(t,msg)=>copyText(t).then(ok=>ok?alert(msg||'복사되었습니다'):
 const M=n=>+(n/1e6).toFixed(3);
 function tableData(k){
   if(k==='rank')return[['순위','이름','직책','구분','전투력','전투력(M)','기록일']].concat(pool(S.filters.rank).map((m,i)=>[i+1,m.name,m.role,m.guild?'길드원':'대기',fmt(latest(m)),M(latest(m)),latestDate(m)]));
-  if(k==='change')return[['전투력순위',mLabel()+'순위','이름','기준','이전(M)','현재(M)','변화량(M)','변화율(%)','이전일','현재일']].concat(changes(S.filters.change).map(c=>[c.pr,c.rr||'',c.m.name,cLabel(),c.a?M(c.a):'',M(c.b),c.pct===null?'':M(c.diff),c.pct===null?'':+c.pct.toFixed(2),c.d0||'',c.d1]));
+  if(k==='change')return[['전투력순위',mLabel()+'순위','이름','기준','이전(M)','현재(M)','성장 전투력(M)','성장률(%)','이전일','현재일']].concat(changes(S.filters.change).map(c=>[c.pr,c.rr||'',c.m.name,cLabel(),c.a?M(c.a):'',M(c.b),c.pct===null?'':M(c.diff),c.pct===null?'':+c.pct.toFixed(2),c.d0||'',c.d1]));
   if(k==='party'){const r=[['파티','이름','전투력','전투력(M)']];parties().forEach((g,i)=>g.forEach(e=>r.push([i+1,e.m.name,fmt(e.p),M(e.p)])));return r}
   return[['순위','이름','전투력(M)'].concat(ALT.map(a=>a[0]))].concat(pool(false).map((m,i)=>[i+1,m.name,M(latest(m))].concat(ALT.map(a=>(m.alt||[]).includes(a[0])?'O':''))));
 }
@@ -625,6 +627,7 @@ document.addEventListener('click',e=>{
     case'cfapply':applyPicks();break;
     case'cfcancel':$('sheet').innerHTML='';window.__pending=null;break;
     case'qadd':quickAdd();break;
+    case'qatoggle':qaOpen=!qaOpen;render();if(qaOpen&&$('qa_name'))$('qa_name').focus();break;
     case'askNew':document.querySelectorAll('#sheet input[type=radio][value="new"]').forEach(r=>r.checked=true);break;
     case'askApply':applyAsk();break;
     case'askCancel':$('sheet').innerHTML='';window.__ask=null;break;
