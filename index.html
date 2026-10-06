@@ -51,7 +51,7 @@ input[type=checkbox]{width:auto}
 .aatool select{width:auto;padding:7px 4px;font-size:13px}
 .aaboard{display:flex;flex-direction:column;gap:10px;min-height:0}
 .pane{overflow-y:auto;border-radius:12px;background:#3a4268;padding:14px 4px 10px;-webkit-overflow-scrolling:touch}
-.pane.p1{flex:3 1 0}.pane.p2{flex:2 1 0}
+.pane.p1{flex:69 1 0}.pane.p2{flex:31 1 0}
 /* 칸 크기(적 수비 = 점선 칸)는 --bw x --bh 로 통일. JS(fitBoard)가 화면 폭에 맞춰 최대 81x75(=기존 54x50의 1.5배)로 계산 */
 .aaboard{--bw:81px;--bh:75px;--rbw:81px;--gg:28px}
 .brow{display:flex;justify-content:center;gap:var(--gg);margin-bottom:30px}
@@ -60,7 +60,8 @@ input[type=checkbox]{width:auto}
 .bl{display:flex;align-items:center;justify-content:center;height:22px;flex:none;background:var(--card2);color:var(--ac);border-radius:7px;font-size:11px;font-weight:700;white-space:nowrap;padding:0 4px}
 .bl .cnt{font-size:10px;font-weight:400;color:var(--sub);margin-left:5px}
 .be{flex:0 0 var(--bw);width:var(--bw);height:var(--bh);background:var(--card2);color:var(--tx);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.25;padding:2px;cursor:pointer}
-.be .s{font-size:10px;color:var(--sub);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.be .v{font-size:14px;font-weight:700}
+.be .s{font-size:10px;color:var(--sub);max-width:100%;overflow:hidden}
+.be .s.nm{font-size:var(--nfs,14px);line-height:1.12;color:#9ea5bd;font-weight:600;text-align:center;word-break:keep-all;letter-spacing:-.4px}.be .v{font-size:14px;font-weight:700}
 .bd{flex:0 0 var(--bw);width:var(--bw);height:var(--bh);border:1.5px dashed #aeb7e0;border-radius:8px;display:flex;align-items:stretch;justify-content:center;padding:0;overflow:hidden}
 .bd.hot{background:#4f5b94;border-color:#fff}
 .pane .sub,.pane .psub{color:#d5dbf2}
@@ -70,13 +71,16 @@ input[type=checkbox]{width:auto}
 .rgrid .bd.cell{flex:none;width:var(--rbw);height:var(--bh)}
 .rrow .bd.cmd{align-self:flex-start;margin:0 auto;flex:none;width:var(--rbw);height:var(--bh)}
 .rsep{height:4px}
-.aaboard.tight .mchip .cn{font-size:9px}.aaboard.tight .mchip .cp{font-size:10.5px}
+.aaboard.tight .mchip .cp{font-size:11px}
 .pgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px 6px}
 .pgrid .mchip{height:54px}
 .psub{font-size:12px;color:var(--sub);margin-bottom:8px}
 .mchip{width:100%;height:100%;background:var(--card2);color:var(--tx);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;padding:2px;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab;border:1.5px solid #3a4060;overflow:hidden}
-.mchip .cn{font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)}
-.mchip .cp{font-size:11.5px;font-weight:700;color:var(--ac)}
+.mchip .cn{font-size:var(--nfs,14px);line-height:1.12;max-width:100%;overflow:hidden;word-break:keep-all;color:#fff;font-weight:700;text-align:center;letter-spacing:-.4px}
+.mchip .cp{font-size:12px;font-weight:700;color:#3dfcff;margin-top:1px}
+.rgrid .mchip .cn{font-size:var(--rfs,13px)}
+.pgrid .mchip .cn{font-size:var(--pfs,13px)}
+.bd:not(.cell) .mchip .cp{font-size:13px}
 .mchip.sel{border-color:var(--ac);box-shadow:0 0 0 2px #7c9cff55}
 .mchip.dragging{opacity:.35}
 .mchip.st-ok{border-color:var(--up)}.mchip.st-mid{border-color:var(--warn)}.mchip.st-low{border-color:var(--down)}
@@ -1195,15 +1199,17 @@ function autoBoard(){
   if(over>0)msg.push('정원(각 '+ROLE_MAX+'명)을 넘은 '+over+'명은 길드원 영역에 남겨 두었습니다');
   if(msg.length)toast(msg.join(' / '));
 }
+/* 이름은 5글자마다 줄바꿈 (글자 크기는 칸 폭에 맞춰 fitBoard가 계산) */
+function nameLines(n){const a=[...String(n)],o=[];for(let i=0;i<a.length;i+=5)o.push(esc(a.slice(i,i+5).join('')));return o.join('<br>')}
 function boardChip(name,zoneSlot){
   const m=find(name);if(!m)return'';
   const P=latest(m);let st='';
   if(zoneSlot){const D=eget(zoneSlot).p,mg=AB().set.m;if(D>0)st=P>=D*(1+mg)?' st-ok':P>=D?' st-mid':' st-low'}
-  return `<div class="mchip${st}${aaSel===name?' sel':''}" data-chip="${esc(name)}"><span class="cn">${esc(name)}</span><span class="cp">${fmt(P)}</span></div>`;
+  return `<div class="mchip${st}${aaSel===name?' sel':''}" data-chip="${esc(name)}"><span class="cn">${nameLines(name)}</span><span class="cp">${fmt(P)}</span></div>`;
 }
 function boardItem(k){
   const e=eget(k),own=AB().board.owners[k];
-  return `<div class="bitem"><div class="bl">${eLabel(k)}</div><div class="bpair"><div class="be" data-ek="${k}"><span class="s">${e.n?esc(e.n):'적군'}</span><span class="v">${e.p?fmt(e.p):'—'}</span></div><div class="bd" data-drop="slot:${k}">${own?boardChip(own,k):''}</div></div></div>`;
+  return `<div class="bitem"><div class="bl">${eLabel(k)}</div><div class="bpair"><div class="be" data-ek="${k}"><span class="${e.n?'s nm':'s'}">${e.n?nameLines(e.n):'적군'}</span><span class="v">${e.p?fmt(e.p):'—'}</span></div><div class="bd" data-drop="slot:${k}">${own?boardChip(own,k):''}</div></div></div>`;
 }
 /* 비상대기조/막타조: 5칸 x 3줄 = 최대 15명 */
 function boardGrid(zone,names){
@@ -1218,7 +1224,7 @@ function vAlt(){
   const free=pool(false).filter(m=>!placed.has(m.name));
   const old=document.querySelectorAll('[data-pane]');if(old.length===2)aaScroll=[old[0].scrollTop,old[1].scrollTop];
   const rows=BOARD_ROWS.map(r=>`<div class="brow${r.length===1?' one':''}">${r.map(boardItem).join('')}</div>`).join('');
-  const cmdRow=`<div class="rrow"><div class="bl">총괄지휘 <span class="cnt">자동 배치에서 제외</span></div><div class="bd cmd" data-drop="cmd">${b.cmd?boardChip(b.cmd):''}</div></div>`;
+  const cmdRow=`<div class="brow"><div class="bitem"><div class="bl">총괄지휘</div><div class="bpair"><div class="be"><span class="s">자동 배치</span><span class="v" style="font-size:13px">제외</span></div><div class="bd" data-drop="cmd">${b.cmd?boardChip(b.cmd):''}</div></div></div></div>`;
   const roles=`<div class="rrow"><div class="bl">비상대기조<span class="cnt">${b.emerg.length}/${ROLE_MAX}명</span></div>${boardGrid('emerg',b.emerg)}</div>
     <div class="rrow"><div class="bl">막타조<span class="cnt">${b.finish.length}/${ROLE_MAX}명</span></div>${boardGrid('finish',b.finish)}</div>`;
   $('main').innerHTML=`<div class="aatool" id="aatool">
@@ -1244,6 +1250,9 @@ function fitBoard(){
   const bw=Math.max(40,Math.min(BW,Math.floor((W-6-gg)/4)));
   const rbw=Math.max(40,Math.min(BW,Math.floor((W-4*8)/5)));
   bd.style.setProperty('--bw',bw+'px');bd.style.setProperty('--bh',H+'px');bd.style.setProperty('--rbw',rbw+'px');bd.style.setProperty('--gg',gg+'px');
+  const fs=w=>Math.max(9,Math.min(20,Math.floor((w-9)/5)));      // 5글자가 한 줄에 들어가는 최대 크기 (최대 20px = 기존의 2배)
+  const pw=(W-4*6)/5;
+  bd.style.setProperty('--nfs',fs(bw)+'px');bd.style.setProperty('--rfs',fs(rbw)+'px');bd.style.setProperty('--pfs',fs(pw)+'px');
   bd.classList.toggle('tight',rbw<62);
 }
 addEventListener('resize',fitBoard);
@@ -1251,7 +1260,8 @@ addEventListener('resize',fitBoard);
 let drag=null,dTimer=null,dStart=null,dScroll=null;
 function dragBegin(chipEl,x,y){
   const name=chipEl.dataset.chip;if(!name)return;
-  const g=chipEl.cloneNode(true);g.className+=' ghost';g.style.width=chipEl.offsetWidth+'px';g.style.height=chipEl.offsetHeight+'px';document.body.appendChild(g);
+  const g=chipEl.cloneNode(true);g.className+=' ghost';g.style.width=chipEl.offsetWidth+'px';g.style.height=chipEl.offsetHeight+'px';
+  const gc=g.querySelector('.cn'),oc=chipEl.querySelector('.cn');if(gc&&oc)gc.style.fontSize=getComputedStyle(oc).fontSize;document.body.appendChild(g);
   drag={name,g,x,y};chipEl.classList.add('dragging');dragMove(x,y);
   dScroll=setInterval(()=>{if(!drag)return;
     document.querySelectorAll('[data-pane]').forEach(p=>{const r=p.getBoundingClientRect();
