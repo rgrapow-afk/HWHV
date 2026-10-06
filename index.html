@@ -50,7 +50,7 @@ input[type=checkbox]{width:auto}
 .aatool .btn{padding:8px 7px;font-size:13px;white-space:nowrap;flex:0 0 auto}
 .aatool select{width:auto;padding:7px 4px;font-size:13px}
 .aaboard{display:flex;flex-direction:column;gap:10px;min-height:0}
-.pane{overflow-y:auto;border-radius:12px;background:var(--card);padding:14px 4px 10px;-webkit-overflow-scrolling:touch}
+.pane{overflow-y:auto;border-radius:12px;background:#3a4268;padding:14px 4px 10px;-webkit-overflow-scrolling:touch}
 .pane.p1{flex:3 1 0}.pane.p2{flex:2 1 0}
 /* 칸 크기(적 수비 = 점선 칸)는 --bw x --bh 로 통일. JS(fitBoard)가 화면 폭에 맞춰 최대 81x75(=기존 54x50의 1.5배)로 계산 */
 .aaboard{--bw:81px;--bh:75px;--rbw:81px;--gg:28px}
@@ -60,9 +60,10 @@ input[type=checkbox]{width:auto}
 .bl{display:flex;align-items:center;justify-content:center;height:22px;flex:none;background:var(--card2);color:var(--ac);border-radius:7px;font-size:11px;font-weight:700;white-space:nowrap;padding:0 4px}
 .bl .cnt{font-size:10px;font-weight:400;color:var(--sub);margin-left:5px}
 .be{flex:0 0 var(--bw);width:var(--bw);height:var(--bh);background:var(--card2);color:var(--tx);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.25;padding:2px;cursor:pointer}
-.be .s{font-size:10px;color:var(--sub)}.be .v{font-size:14px;font-weight:700}
-.bd{flex:0 0 var(--bw);width:var(--bw);height:var(--bh);border:1.5px dashed #596189;border-radius:8px;display:flex;align-items:stretch;justify-content:center;padding:0;overflow:hidden}
-.bd.hot{background:#2b3358;border-color:var(--ac)}
+.be .s{font-size:10px;color:var(--sub);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.be .v{font-size:14px;font-weight:700}
+.bd{flex:0 0 var(--bw);width:var(--bw);height:var(--bh);border:1.5px dashed #aeb7e0;border-radius:8px;display:flex;align-items:stretch;justify-content:center;padding:0;overflow:hidden}
+.bd.hot{background:#4f5b94;border-color:#fff}
+.pane .sub,.pane .psub{color:#d5dbf2}
 .rrow{display:flex;flex-direction:column;gap:5px;margin-bottom:30px}
 .rrow .bl{align-self:flex-start;min-width:90px}
 .rgrid{display:grid;grid-template-columns:repeat(5,var(--rbw));gap:12px 8px;align-content:start;justify-content:center}
@@ -79,7 +80,7 @@ input[type=checkbox]{width:auto}
 .mchip.sel{border-color:var(--ac);box-shadow:0 0 0 2px #7c9cff55}
 .mchip.dragging{opacity:.35}
 .mchip.st-ok{border-color:var(--up)}.mchip.st-mid{border-color:var(--warn)}.mchip.st-low{border-color:var(--down)}
-.mchip.ghost{position:fixed;z-index:60;pointer-events:none;opacity:.95;box-shadow:0 6px 18px #000a;transform:scale(1.08)}
+.mchip.ghost{position:fixed;max-height:80px;z-index:60;pointer-events:none;opacity:.95;box-shadow:0 6px 18px #000a;transform:scale(1.08)}
 .altgrid{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;align-items:start}
 .altR{position:sticky;top:62px;max-height:calc(100vh - 150px);overflow-y:auto}
 .acard{background:var(--card);border-radius:10px;padding:7px 8px;margin-bottom:6px}
@@ -145,6 +146,10 @@ const dates=m=>Object.keys(m.history).sort();
 const latest=m=>{const d=dates(m);return d.length?m.history[d[d.length-1]]:0};
 const latestDate=m=>{const d=dates(m);return d[d.length-1]||''};
 const find=n=>S.members.find(m=>m.name===n);
+/* 순위 페이지용: 길드장 → 부길드장 → 장로 → 멤버 순, 각 직책 안에서는 전투력 순 */
+const RANK_ORDER=['길드장','부길드장','장로'];
+const roleRank=m=>{const i=RANK_ORDER.indexOf(m.role);return i<0?RANK_ORDER.length:i};
+function rankPool(include){if(S.rankPower)return pool(include);return pool(include).sort((a,b)=>roleRank(a)-roleRank(b)||latest(b)-latest(a))}
 function pool(include){return S.members.filter(m=>(include||m.guild)&&dates(m).length).sort((a,b)=>latest(b)-latest(a))}
 function toggle(key){return `<label class="tog"><input type="checkbox" data-filter="${key}" ${S.filters[key]?'checked':''}> 길드 외(가입대기 등) 포함</label>`}
 const badges=m=>(m.role&&m.role!=='멤버'?`<span class="badge">${esc(m.role)}</span>`:'')+(m.guild?'':'<span class="badge w">대기</span>');
@@ -160,14 +165,14 @@ function render(){
 
 let qaOpen=false;
 function vRank(){
-  const l=pool(S.filters.rank);
-  const bs='style="flex:1 1 0;padding:10px 4px;font-size:14px;white-space:nowrap"';
+  const l=rankPool(S.filters.rank);
+  const bs='style="flex:1 1 0;padding:10px 2px;font-size:12.5px;white-space:nowrap"';
   const qa=qaOpen?`<div class="card"><b>＋ 대기자 빠른 추가</b> <span class="sub">(이름·전투력 입력 후 Enter)</span>
   <input id="qa_name" placeholder="이름" autocomplete="off" style="margin-top:8px">
   <div class="two" style="margin-top:6px"><input id="qa_val" inputmode="decimal" placeholder="전투력 (예: 250.5)"><select id="qa_unit"><option${(S.qunit||'M')==='B'?' selected':''}>B</option><option${(S.qunit||'M')==='M'?' selected':''}>M</option></select></div>
   <label class="tog" style="margin:8px 0 0"><input type="checkbox" id="qa_guild"> 길드원으로 추가 (체크 안 하면 대기자)</label>
   <div class="bar" style="margin:8px 0 0"><button class="btn sec" data-act="qatoggle">접기</button><button class="btn" data-act="qadd">추가</button></div></div>`:'';
-  $('main').innerHTML=toggle('rank')+`<div class="bar" style="flex-wrap:nowrap;gap:6px"><button class="btn ${qaOpen?'':'sec'}" ${bs} data-act="qatoggle">＋ 대기자 ${qaOpen?'▴':'▾'}</button><button class="btn sec" ${bs} data-act="roles">👑 직책</button><button class="btn sec" ${bs} data-act="img" data-k="rank">🖼 이미지</button><button class="btn sec" ${bs} data-act="tbl" data-k="rank">📊 엑셀</button></div>`+qa+
+  $('main').innerHTML=toggle('rank')+`<div class="bar" style="flex-wrap:nowrap;gap:6px"><button class="btn ${qaOpen?'':'sec'}" ${bs} data-act="qatoggle">＋ 대기자 ${qaOpen?'▴':'▾'}</button><button class="btn sec" ${bs} data-act="roles">👑 직책</button><button class="btn sec" ${bs} data-act="img" data-k="rank">🖼 이미지</button><button class="btn sec" ${bs} data-act="tbl" data-k="rank">📊 엑셀</button><button class="btn ${S.rankPower?'':'sec'}" ${bs} data-act="rankpow">⚡ 전투력</button></div>`+qa+
   (l.length?l.map((m,i)=>`<div class="row g${Math.floor(i/5)%2}" data-edit="${esc(m.name)}"><div class="no">${i+1}</div><div class="nm"><b>${esc(m.name)}${badges(m)}</b><span class="sub">${latestDate(m)} · ✏️ 눌러서 수정</span></div><div class="val"><b>${fmt(latest(m))}</b></div></div>`).join(''):'<div class="empty">데이터가 없습니다.<br>[입력] 탭에서 캡처를 올려주세요.</div>');
 }
 
@@ -286,6 +291,29 @@ async function readEnemyPower(cv,b,W){
   const top=Object.values(votes).sort((a,c)=>c.n-a.n)[0];
   return top?{val:top.p.val,unit:top.p.unit,n:top.n}:null;
 }
+/* 이름: 전투력 바로 위의 주황색 글씨. 밝기/주황색 두 방식으로 흑백 변환해서 읽고 한글이 더 많이 읽힌 쪽을 사용 */
+function nameCanvas(cv,l,t,w,h,mode,sc){
+  const c=document.createElement('canvas');c.width=w+16;c.height=h+16;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+  const im=x.getImageData(8,8,w,h),d=im.data;
+  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){
+    const px=l+xx,py=t+yy;let v=255;
+    if(px>=0&&py>=0&&px<cv.W&&py<cv.H){const i=(py*cv.W+px)*4,r=cv.px[i],g=cv.px[i+1],b=cv.px[i+2];
+      const on=mode==='lum'?(r*.3+g*.59+b*.11)>150:(r>150&&r-b>60);v=on?0:255}
+    const o=(yy*w+xx)*4;d[o]=d[o+1]=d[o+2]=v;d[o+3]=255}
+  x.putImageData(im,8,8);
+  const o2=document.createElement('canvas');o2.width=c.width*sc;o2.height=c.height*sc;
+  const x2=o2.getContext('2d');x2.imageSmoothingQuality='high';x2.drawImage(c,0,0,o2.width,o2.height);return o2;
+}
+async function readEnemyName(cv,b,W){
+  const w=b.x1-b.x0+30,l=b.x0-6;let best='';
+  for(const [mode,dy0,dy1] of [['lum',-86,-48],['warm',-84,-52]]){
+    const txt=(await W.k.recognize(nameCanvas(cv,l,b.y0+dy0,w,dy1-dy0,mode,3))).data.text;
+    const tok=txt.split(/\s+/).map(t=>t.replace(/[^가-힣A-Za-z0-9]/g,'')).filter(Boolean).sort((a,c)=>hangul(c)-hangul(a)||c.length-a.length)[0]||'';
+    if(hangul(tok)>=2&&hangul(tok)>hangul(best))best=tok;
+  }
+  return best;
+}
 async function readEnemyLabel(cv,b,W){
   const texts=[];
   for(const [dx0,dx1,dy0,dy1,s] of [[-70,135,40,92,3],[-60,125,44,88,4],[-80,150,36,96,3]])
@@ -314,13 +342,13 @@ async function runEnemyOcr(files){
       const bars=findBars(cv).sort((a,b)=>a.y0-b.y0||a.x0-b.x0),found=[];
       for(const b of bars){
         say(`이미지 ${i+1}/${files.length} · 노드 ${found.length+1}/${bars.length} 분석 중…`);
-        found.push({b,p:await readEnemyPower(cv,b,W),lb:await readEnemyLabel(cv,b,W)});
+        found.push({b,p:await readEnemyPower(cv,b,W),lb:await readEnemyLabel(cv,b,W),nm:await readEnemyName(cv,b,W)});
       }
       const F=found.filter(x=>x.lb.type==='F').sort((a,c)=>a.b.x0-c.b.x0);
       F.forEach((x,idx)=>{x.slot=F.length===2?(idx===0?'F2':'F1'):((x.b.x0+x.b.x1)/2<cv.W/2?'F2':'F1')});
       found.forEach(x=>{if(x.lb.type==='C')x.slot='C';else if(x.lb.type==='G'&&x.lb.n)x.slot='G'+x.lb.n});
       if(found.length&&!found.some(x=>x.slot==='C')){const c0=found[0];if(!c0.slot&&!c0.lb.type&&Math.abs((c0.b.x0+c0.b.x1)/2-cv.W*0.59)<200)c0.slot='C'}
-      found.forEach(x=>nodes.push({slot:x.slot||'',val:x.p?x.p.val+x.p.unit:'',n:x.p?x.p.n:0}));
+      found.forEach(x=>nodes.push({slot:x.slot||'',val:x.p?x.p.val+x.p.unit:'',n:x.p?x.p.n:0,name:x.nm||''}));
     }
     const out=[],seen={};
     nodes.forEach(n=>{if(n.slot&&seen[n.slot]){if(n.n>seen[n.slot].n)Object.assign(seen[n.slot],n)}else{const c={...n};out.push(c);if(n.slot)seen[n.slot]=c}});
@@ -336,7 +364,7 @@ function showEnemyResult(nodes){
   $('sheet').innerHTML=`<div class="sheet"><div><h3 style="margin:0 0 4px">적 인식 결과 (${nodes.length}개)</h3>
   <div class="sub">자리(주성/요새/주둔지)와 전투력을 확인·수정한 뒤 저장하세요. 가려져 인식되지 않은 자리는 건드리지 않고 그대로 둡니다.</div>
   ${nodes.map((n,i)=>`<div class="card" style="padding:8px"><select data-er="${i}">${opts(n.slot)}</select>
-   <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:6px;margin-top:6px"><input data-ev="${i}" value="${esc(n.val)}" placeholder="예: 962.69M"><input data-en="${i}" placeholder="이름(선택)"></div></div>`).join('')}
+   <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:6px;margin-top:6px"><input data-ev="${i}" value="${esc(n.val)}" placeholder="예: 962.69M"><input data-en="${i}" value="${esc(n.name||'')}" placeholder="이름(선택)"></div></div>`).join('')}
   <div class="bar" style="margin-top:12px"><button class="btn sec" data-sheet="close">취소</button><button class="btn" data-act="eapply">저장</button></div></div></div>`;
 }
 function applyEnemy(){
@@ -653,7 +681,7 @@ function sheetSave(){
 /* ---------- 이미지 저장 ---------- */
 const IMGBTN=k=>`<button class="btn sec" data-act="img" data-k="${k}">🖼 이미지 저장</button><button class="btn sec" data-act="tbl" data-k="${k}">📊 엑셀용 표 복사</button>`;
 function pageItems(k){
-  if(k==='rank'){const l=pool(S.filters.rank);
+  if(k==='rank'){const l=rankPool(S.filters.rank);
     return{name:'순위',sub:`전투력 순위 · ${l.length}명`+(S.filters.rank?' (길드 외 포함)':''),
       items:l.map((m,i)=>({g:Math.floor(i/5)%2,no:i+1,t:m.name,tag:[m.role&&m.role!=='멤버'?m.role:'',m.guild?'':'대기'].filter(Boolean).join(' '),r:fmt(latest(m))}))}}
   if(k==='change'){const l=changes(S.filters.change),rate=(S.csort||'power')==='rate';
@@ -1175,7 +1203,7 @@ function boardChip(name,zoneSlot){
 }
 function boardItem(k){
   const e=eget(k),own=AB().board.owners[k];
-  return `<div class="bitem"><div class="bl">${eLabel(k)}</div><div class="bpair"><div class="be" data-ek="${k}"><span class="s">적군</span><span class="v">${e.p?fmt(e.p):'—'}</span></div><div class="bd" data-drop="slot:${k}">${own?boardChip(own,k):''}</div></div></div>`;
+  return `<div class="bitem"><div class="bl">${eLabel(k)}</div><div class="bpair"><div class="be" data-ek="${k}"><span class="s">${e.n?esc(e.n):'적군'}</span><span class="v">${e.p?fmt(e.p):'—'}</span></div><div class="bd" data-drop="slot:${k}">${own?boardChip(own,k):''}</div></div></div>`;
 }
 /* 비상대기조/막타조: 5칸 x 3줄 = 최대 15명 */
 function boardGrid(zone,names){
@@ -1190,8 +1218,8 @@ function vAlt(){
   const free=pool(false).filter(m=>!placed.has(m.name));
   const old=document.querySelectorAll('[data-pane]');if(old.length===2)aaScroll=[old[0].scrollTop,old[1].scrollTop];
   const rows=BOARD_ROWS.map(r=>`<div class="brow${r.length===1?' one':''}">${r.map(boardItem).join('')}</div>`).join('');
-  const roles=`<div class="rrow"><div class="bl">총괄지휘</div><div class="bd cmd" data-drop="cmd">${b.cmd?boardChip(b.cmd):''}</div></div>
-    <div class="rrow"><div class="bl">비상대기조<span class="cnt">${b.emerg.length}/${ROLE_MAX}명</span></div>${boardGrid('emerg',b.emerg)}</div>
+  const cmdRow=`<div class="rrow"><div class="bl">총괄지휘 <span class="cnt">자동 배치에서 제외</span></div><div class="bd cmd" data-drop="cmd">${b.cmd?boardChip(b.cmd):''}</div></div>`;
+  const roles=`<div class="rrow"><div class="bl">비상대기조<span class="cnt">${b.emerg.length}/${ROLE_MAX}명</span></div>${boardGrid('emerg',b.emerg)}</div>
     <div class="rrow"><div class="bl">막타조<span class="cnt">${b.finish.length}/${ROLE_MAX}명</span></div>${boardGrid('finish',b.finish)}</div>`;
   $('main').innerHTML=`<div class="aatool" id="aatool">
     <button class="btn sec" data-act="eup">📷 적</button><button class="btn" data-act="boardauto">🤖 자동</button>
@@ -1199,7 +1227,7 @@ function vAlt(){
     <button class="btn sec" data-act="copyalt" title="복사">📋</button><button class="btn sec" data-act="img" data-k="alt" title="이미지">🖼</button><button class="btn sec" data-act="tbl" data-k="alt" title="엑셀">📊</button><button class="btn dg" data-act="boardreset" title="비우기">↺</button>
     <input type="file" id="efiles" accept="image/*" multiple hidden></div>
   <div class="aaboard" id="aaboard">
-    <div class="pane p1" data-pane="0" data-drop-pane="1">${rows}<div class="rsep"></div>${roles}<div class="sub" id="est" style="text-align:center;padding:4px">점선 칸에 길드원을 끌어다 놓거나, 길드원을 누른 뒤 점선 칸을 누르세요</div></div>
+    <div class="pane p1" data-pane="0" data-drop-pane="1">${cmdRow}${rows}<div class="rsep"></div>${roles}<div class="sub" id="est" style="text-align:center;padding:4px">점선 칸에 길드원을 끌어다 놓거나, 길드원을 누른 뒤 점선 칸을 누르세요</div></div>
     <div class="pane p2" data-pane="1"><div class="psub">길드원 · 미배정 ${free.length}명 <span class="sub">(여기로 끌어오면 배치 해제)</span></div>
       <div class="pgrid" data-drop="pool">${free.map(m=>boardChip(m.name)).join('')||'<div class="sub" style="grid-column:1/-1;text-align:center;padding:10px">모두 배치되었습니다</div>'}</div></div>
   </div>`;
@@ -1223,7 +1251,7 @@ addEventListener('resize',fitBoard);
 let drag=null,dTimer=null,dStart=null,dScroll=null;
 function dragBegin(chipEl,x,y){
   const name=chipEl.dataset.chip;if(!name)return;
-  const g=chipEl.cloneNode(true);g.className+=' ghost';g.style.width=chipEl.offsetWidth+'px';document.body.appendChild(g);
+  const g=chipEl.cloneNode(true);g.className+=' ghost';g.style.width=chipEl.offsetWidth+'px';g.style.height=chipEl.offsetHeight+'px';document.body.appendChild(g);
   drag={name,g,x,y};chipEl.classList.add('dragging');dragMove(x,y);
   dScroll=setInterval(()=>{if(!drag)return;
     document.querySelectorAll('[data-pane]').forEach(p=>{const r=p.getBoundingClientRect();
@@ -1247,7 +1275,7 @@ function dragEnd(x,y){
 document.addEventListener('touchstart',e=>{
   const c=e.target.closest&&e.target.closest('[data-chip]');if(!c||tab!=='alt')return;
   const t=e.touches[0];dStart={x:t.clientX,y:t.clientY};
-  dTimer=setTimeout(()=>{dTimer=null;dragBegin(c,dStart.x,dStart.y);if(navigator.vibrate)navigator.vibrate(15)},260);
+  dTimer=setTimeout(()=>{dTimer=null;dragBegin(c,dStart.x,dStart.y);if(navigator.vibrate)navigator.vibrate(15)},200);
 },{passive:true});
 document.addEventListener('touchmove',e=>{
   const t=e.touches[0];
@@ -1298,7 +1326,7 @@ function copyText(t){
 const copy=(t,msg)=>copyText(t).then(ok=>ok?alert(msg||'복사되었습니다'):prompt('복사하세요',t));
 const M=n=>+(n/1e6).toFixed(3);
 function tableData(k){
-  if(k==='rank')return[['순위','이름','직책','구분','전투력','전투력(M)','기록일']].concat(pool(S.filters.rank).map((m,i)=>[i+1,m.name,m.role,m.guild?'길드원':'대기',fmt(latest(m)),M(latest(m)),latestDate(m)]));
+  if(k==='rank')return[['순위','이름','직책','구분','전투력','전투력(M)','기록일']].concat(rankPool(S.filters.rank).map((m,i)=>[i+1,m.name,m.role,m.guild?'길드원':'대기',fmt(latest(m)),M(latest(m)),latestDate(m)]));
   if(k==='change')return[['전투력순위',mLabel()+'순위','이름','기준','이전(M)','현재(M)','성장 전투력(M)','성장률(%)','이전일','현재일']].concat(changes(S.filters.change).map(c=>[c.pr,c.rr||'',c.m.name,cLabel(),c.a?M(c.a):'',M(c.b),c.pct===null?'':M(c.diff),c.pct===null?'':+c.pct.toFixed(2),c.d0||'',c.d1]));
   if(k==='party'){const r=[['파티','이름','전투력','전투력(M)']];parties().forEach((g,i)=>g.forEach(e=>r.push([i+1,e.m.name,fmt(e.p),M(e.p)])));return r}
   {const b=AB().board,r=[['구분','자리','적 전투력(M)','담당','담당 전투력(M)']],P=n=>{const m=find(n);return m?M(latest(m)):''};
@@ -1332,6 +1360,7 @@ document.addEventListener('click',e=>{
     case'cfshared':setAllPicks('shared');break;
     case'cfapply':applyPicks();break;
     case'cfcancel':$('sheet').innerHTML='';window.__pending=null;break;
+    case'rankpow':S.rankPower=!S.rankPower;save();render();break;
     case'qadd':quickAdd();break;
     case'qatoggle':qaOpen=!qaOpen;render();if(qaOpen&&$('qa_name'))$('qa_name').focus();break;
     case'vcYes':$('sheet').innerHTML='';window.__vc=null;break;
